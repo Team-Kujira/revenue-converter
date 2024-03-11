@@ -99,11 +99,11 @@ impl Action {
         storage: &mut dyn Storage,
         (denom, (contract, limit, msg)): &(String, (Addr, Uint128, Binary)),
     ) -> StdResult<Self> {
-        LAST.save(storage, &denom)?;
+        LAST.save(storage, denom)?;
         Ok(Self {
             denom: Denom::from(denom),
             contract: contract.clone(),
-            limit: limit.clone(),
+            limit: *limit,
             msg: msg.clone(),
         })
     }
@@ -131,7 +131,7 @@ impl Action {
         )
     }
 
-    pub fn unset(storage: &mut dyn Storage, denom: Denom) -> () {
+    pub fn unset(storage: &mut dyn Storage, denom: Denom) {
         ACTIONS.remove(storage, denom.to_string())
     }
 
@@ -143,11 +143,11 @@ impl Action {
         if total.is_zero() {
             return Ok(None);
         }
-        return Ok(Some(CosmosMsg::Wasm(WasmMsg::Execute {
+        Ok(Some(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: self.contract.to_string(),
             msg: self.msg.clone(),
             funds: vec![amount],
-        })));
+        })))
     }
 }
 

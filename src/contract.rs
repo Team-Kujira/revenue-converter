@@ -40,7 +40,7 @@ pub fn execute(
     let mut config = Config::load(deps.storage)?;
     match msg {
         ExecuteMsg::SetOwner(owner) => {
-            if info.sender != config.owner.to_string() {
+            if info.sender != config.owner {
                 return Err(ContractError::Unauthorized {});
             }
 
@@ -49,7 +49,7 @@ pub fn execute(
             Ok(Response::default())
         }
         ExecuteMsg::SetAction(action) => {
-            if info.sender != config.owner.to_string() {
+            if info.sender != config.owner {
                 return Err(ContractError::Unauthorized {});
             }
 
@@ -57,7 +57,7 @@ pub fn execute(
             Ok(Response::default())
         }
         ExecuteMsg::UnsetAction(denom) => {
-            if info.sender != config.owner.to_string() {
+            if info.sender != config.owner {
                 return Err(ContractError::Unauthorized {});
             }
 
@@ -65,7 +65,7 @@ pub fn execute(
             Ok(Response::default())
         }
         ExecuteMsg::SetExecutor(executor) => {
-            if info.sender != config.owner.to_string() {
+            if info.sender != config.owner {
                 return Err(ContractError::Unauthorized {});
             }
 
@@ -74,7 +74,7 @@ pub fn execute(
             Ok(Response::default())
         }
         ExecuteMsg::Run {} => {
-            if info.sender != config.executor.to_string() {
+            if info.sender != config.executor {
                 return Err(ContractError::Unauthorized {});
             }
 
@@ -85,7 +85,7 @@ pub fn execute(
                     .add_event(event)
                     .add_submessage(SubMsg::reply_always(msg, 0)));
             }
-            return Ok(Response::default());
+            Ok(Response::default())
         }
     }
 }
