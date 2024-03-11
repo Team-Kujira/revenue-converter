@@ -3,7 +3,7 @@ use std::cmp::min;
 use crate::msg::{ActionResponse, ConfigResponse, InstantiateMsg};
 use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    Addr, Binary, Coin, CosmosMsg, Order, StdError, StdResult, Storage, Uint128, WasmMsg,
+    coins, Addr, Binary, Coin, CosmosMsg, Order, StdError, StdResult, Storage, Uint128, WasmMsg,
 };
 use cw_storage_plus::{Bound, Item, Map};
 use kujira::Denom;
@@ -146,7 +146,7 @@ impl Action {
         Ok(Some(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: self.contract.to_string(),
             msg: self.msg.clone(),
-            funds: vec![amount],
+            funds: coins(total.u128(), amount.denom),
         })))
     }
 }

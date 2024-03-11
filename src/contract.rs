@@ -18,6 +18,11 @@ const CONTRACT_NAME: &str = "crates.io:kujira-revenue-converter";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: ()) -> Result<Response, ContractError> {
+    Ok(Response::default())
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
     _env: Env,
@@ -110,11 +115,15 @@ pub fn reply(deps: DepsMut, env: Env, _msg: Reply) -> Result<Response, ContractE
     let balance = deps
         .querier
         .query_balance(env.contract.address, config.target_denom.to_string())?;
-    let send = config
-        .target_denom
-        .send(&config.target_address, &balance.amount);
+    let send = if balance.amount.is_zero() {
+        vec![]
+    } else {
+        vec![config
+            .target_denom
+            .send(&config.target_address, &balance.amount)]
+    };
     Ok(Response::default()
-        .add_message(send)
+        .add_messages(send)
         .add_event(Event::new("revenue/reply").add_attribute("send", balance.to_string())))
 }
 
