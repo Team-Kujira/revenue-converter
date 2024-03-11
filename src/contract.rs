@@ -1,8 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_json_binary, Binary, Deps, DepsMut, Env, Event, MessageInfo, Reply, Response, StdResult,
-    SubMsg,
+    to_json_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env, Event, MessageInfo, Reply,
+    Response, StdResult, SubMsg,
 };
 use kujira::{fee_address, Denom};
 
@@ -62,21 +62,35 @@ pub fn execute(
 pub fn sudo(deps: DepsMut, env: Env, msg: SudoMsg) -> Result<Response, ContractError> {
     match msg {
         SudoMsg::Run {} => {
-            if let Some(action) = Action::next(deps.storage)? {
-                let balance = deps
-                    .querier
-                    .query_balance(env.contract.address, action.denom.to_string())?;
-                if let Some(msg) = action.execute(balance)? {
-                    let event =
-                        Event::new("revenue/run").add_attribute("denom", action.denom.to_string());
-                    return Ok(Response::default()
-                        .add_event(event)
-                        .add_submessage(SubMsg::reply_always(msg, 0)));
-                }
+            if let Some((action, msg)) = get_action_msg(deps, &env.contract.address)? {
+                let event =
+                    Event::new("revenue/run").add_attribute("denom", action.denom.to_string());
+                return Ok(Response::default()
+                    .add_event(event)
+                    .add_submessage(SubMsg::reply_always(msg, 0)));
             }
             return Ok(Response::default());
         }
     }
+}
+
+fn get_action_msg(deps: DepsMut, contract: &Addr) -> StdResult<Option<(Action, CosmosMsg)>> {
+    // Fetch the next action in the iterator
+    if let Some(action) = Action::next(deps.storage)? {
+        let balance = deps
+            .querier
+            .query_balance(contract, action.denom.to_string())?;
+
+        return match action.execute(balance)? {
+            None => {
+                // Nothing to do. Don't waste this execution, look for the next action with something to do
+                // Action::next will have stored the previous key and continue the iterator, until failing at the end
+                get_action_msg(deps, contract)
+            }
+            Some(msg) => Ok(Some((action, msg))),
+        };
+    }
+    Ok(None)
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
