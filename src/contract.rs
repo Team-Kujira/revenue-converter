@@ -127,6 +127,7 @@ mod tests {
     use cosmwasm_std::{
         from_json,
         testing::{mock_dependencies, mock_env, mock_info},
+        Uint128,
     };
 
     #[test]
@@ -145,6 +146,86 @@ mod tests {
         let status: StatusResponse =
             from_json(query(deps.as_ref(), mock_env(), QueryMsg::Status {}).unwrap()).unwrap();
         assert_eq!(status.last, None);
+        let actions: ActionsResponse =
+            from_json(query(deps.as_ref(), mock_env(), QueryMsg::Actions {}).unwrap()).unwrap();
+        assert_eq!(actions.actions, vec![]);
+    }
+    #[test]
+    fn authorization() {
+        let mut deps = mock_dependencies();
+        let info = mock_info("owner", &vec![]);
+        let msg = InstantiateMsg {
+            owner: Addr::unchecked("owner"),
+            revenue_denom: Denom::from("ukuji"),
+        };
+        instantiate(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
+
+        execute(
+            deps.as_mut(),
+            mock_env(),
+            info.clone(),
+            ExecuteMsg::SetOwner(Addr::unchecked("owner-new")),
+        )
+        .unwrap();
+
+        execute(
+            deps.as_mut(),
+            mock_env(),
+            info.clone(),
+            ExecuteMsg::SetOwner(Addr::unchecked("owner-new")),
+        )
+        .unwrap_err();
+
+        let action = Action {
+            denom: Denom::from("uatom"),
+            contract: Addr::unchecked("fin"),
+            limit: Uint128::MAX,
+            msg: Binary::default(),
+        };
+
+        execute(
+            deps.as_mut(),
+            mock_env(),
+            info.clone(),
+            ExecuteMsg::SetAction(action.clone()),
+        )
+        .unwrap_err();
+
+        execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info("owner-new", &vec![]),
+            ExecuteMsg::SetAction(action.clone()),
+        )
+        .unwrap();
+
+        let actions: ActionsResponse =
+            from_json(query(deps.as_ref(), mock_env(), QueryMsg::Actions {}).unwrap()).unwrap();
+        assert_eq!(
+            actions.actions,
+            vec![ActionResponse {
+                denom: action.denom.clone(),
+                contract: action.contract,
+                limit: action.limit,
+                msg: action.msg
+            }]
+        );
+
+        execute(
+            deps.as_mut(),
+            mock_env(),
+            info,
+            ExecuteMsg::UnsetAction(action.denom.clone()),
+        )
+        .unwrap_err();
+        execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info("owner-new", &vec![]),
+            ExecuteMsg::UnsetAction(action.denom),
+        )
+        .unwrap();
+
         let actions: ActionsResponse =
             from_json(query(deps.as_ref(), mock_env(), QueryMsg::Actions {}).unwrap()).unwrap();
         assert_eq!(actions.actions, vec![]);
