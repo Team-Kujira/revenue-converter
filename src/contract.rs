@@ -93,8 +93,10 @@ pub fn reply(deps: DepsMut, env: Env, _msg: Reply) -> Result<Response, ContractE
     let config = Config::load(deps.storage)?;
     let balance = deps
         .querier
-        .query_balance(env.contract.address, config.revenue_denom.to_string())?;
-    let send = config.revenue_denom.send(&fee_address(), &balance.amount);
+        .query_balance(env.contract.address, config.target_denom.to_string())?;
+    let send = config
+        .target_denom
+        .send(&config.target_address, &balance.amount);
     Ok(Response::default()
         .add_message(send)
         .add_event(Event::new("revenue/reply").add_attribute("send", balance.to_string())))
@@ -132,13 +134,14 @@ mod tests {
         let info = mock_info("owner", &vec![]);
         let msg = InstantiateMsg {
             owner: Addr::unchecked("owner"),
-            revenue_denom: Denom::from("ukuji"),
+            target_denom: Denom::from("ukuji"),
+            target_address: fee_address(),
         };
         instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
         let config: ConfigResponse =
             from_json(query(deps.as_ref(), mock_env(), QueryMsg::Config {}).unwrap()).unwrap();
         assert_eq!(config.owner, Addr::unchecked("owner"));
-        assert_eq!(config.revenue_denom, Denom::from("ukuji"));
+        assert_eq!(config.target_denom, Denom::from("ukuji"));
         let status: StatusResponse =
             from_json(query(deps.as_ref(), mock_env(), QueryMsg::Status {}).unwrap()).unwrap();
         assert_eq!(status.last, None);
@@ -152,7 +155,8 @@ mod tests {
         let info = mock_info("owner", &vec![]);
         let msg = InstantiateMsg {
             owner: Addr::unchecked("owner"),
-            revenue_denom: Denom::from("ukuji"),
+            target_denom: Denom::from("ukuji"),
+            target_address: fee_address(),
         };
         instantiate(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
 
@@ -242,7 +246,8 @@ mod tests {
         let info = mock_info("contract-0", &vec![]);
         let msg = InstantiateMsg {
             owner: Addr::unchecked("owner"),
-            revenue_denom: Denom::from("ukuji"),
+            target_denom: Denom::from("ukuji"),
+            target_address: fee_address(),
         };
         instantiate(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
 
