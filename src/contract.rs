@@ -122,4 +122,31 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 }
 
 #[cfg(test)]
-mod tests {}
+mod tests {
+    use super::*;
+    use cosmwasm_std::{
+        from_json,
+        testing::{mock_dependencies, mock_env, mock_info},
+    };
+
+    #[test]
+    fn instantiation() {
+        let mut deps = mock_dependencies();
+        let info = mock_info("owner", &vec![]);
+        let msg = InstantiateMsg {
+            owner: Addr::unchecked("owner"),
+            revenue_denom: Denom::from("ukuji"),
+        };
+        instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
+        let config: ConfigResponse =
+            from_json(query(deps.as_ref(), mock_env(), QueryMsg::Config {}).unwrap()).unwrap();
+        assert_eq!(config.owner, Addr::unchecked("owner"));
+        assert_eq!(config.revenue_denom, Denom::from("ukuji"));
+        let status: StatusResponse =
+            from_json(query(deps.as_ref(), mock_env(), QueryMsg::Status {}).unwrap()).unwrap();
+        assert_eq!(status.last, None);
+        let actions: ActionsResponse =
+            from_json(query(deps.as_ref(), mock_env(), QueryMsg::Actions {}).unwrap()).unwrap();
+        assert_eq!(actions.actions, vec![]);
+    }
+}
