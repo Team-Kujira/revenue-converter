@@ -73,18 +73,30 @@ impl Action {
             .collect::<StdResult<Vec<(String, (Addr, Uint128, Binary))>>>()?
             .first()
         {
-            Some((denom, (contract, limit, msg))) => {
-                LAST.save(storage, denom)?;
-                Ok(Some(Self {
-                    denom: Denom::from(denom),
-                    contract: contract.clone(),
-                    limit: limit.clone(),
-                    msg: msg.clone(),
-                }))
+            Some(res) => Ok(Some(Self::load(storage, res)?)),
+            // If there's nothing next, try the start
+            None => {
+                if let Some(res) = ACTIONS.first(storage)? {
+                    return Ok(Some(Self::load(storage, &res)?));
+                }
+                Ok(None)
             }
-            None => Ok(None),
         }
     }
+
+    fn load(
+        storage: &mut dyn Storage,
+        (denom, (contract, limit, msg)): &(String, (Addr, Uint128, Binary)),
+    ) -> StdResult<Self> {
+        LAST.save(storage, &denom)?;
+        Ok(Self {
+            denom: Denom::from(denom),
+            contract: contract.clone(),
+            limit: limit.clone(),
+            msg: msg.clone(),
+        })
+    }
+
     pub fn all(storage: &dyn Storage) -> StdResult<Vec<Self>> {
         ACTIONS
             .range(storage, None, None, Order::Ascending)

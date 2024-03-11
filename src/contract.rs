@@ -80,13 +80,8 @@ fn get_action_msg(deps: DepsMut, contract: &Addr) -> StdResult<Option<(Action, C
         let balance = deps
             .querier
             .query_balance(contract, action.denom.to_string())?;
-
         return match action.execute(balance)? {
-            None => {
-                // Nothing to do. Don't waste this execution, look for the next action with something to do
-                // Action::next will have stored the previous key and continue the iterator, until failing at the end
-                get_action_msg(deps, contract)
-            }
+            None => Ok(None),
             Some(msg) => Ok(Some((action, msg))),
         };
     }
@@ -123,10 +118,11 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
     use cosmwasm_std::{
-        from_json,
-        testing::{mock_dependencies, mock_env, mock_info},
+        coin, from_json,
+        testing::{mock_dependencies, mock_dependencies_with_balances, mock_env, mock_info},
         Uint128,
     };
 
@@ -229,5 +225,91 @@ mod tests {
         let actions: ActionsResponse =
             from_json(query(deps.as_ref(), mock_env(), QueryMsg::Actions {}).unwrap()).unwrap();
         assert_eq!(actions.actions, vec![]);
+    }
+
+    #[test]
+    fn cranking() {
+        let mut deps = mock_dependencies_with_balances(&[(
+            "cosmos2contract",
+            &[
+                // coin(1000u128, "token-a"),
+                coin(1000u128, "token-b"),
+                coin(1000u128, "token-c"),
+                coin(1000u128, "token-d"),
+                coin(1000u128, "token-e"),
+            ],
+        )]);
+        let info = mock_info("contract-0", &vec![]);
+        let msg = InstantiateMsg {
+            owner: Addr::unchecked("owner"),
+            revenue_denom: Denom::from("ukuji"),
+        };
+        instantiate(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
+
+        // Make sure that execution ends when there are no actions
+        sudo(deps.as_mut(), mock_env(), SudoMsg::Run {}).unwrap();
+        let status: StatusResponse =
+            from_json(query(deps.as_ref(), mock_env(), QueryMsg::Status {}).unwrap()).unwrap();
+        assert_eq!(status.last, None);
+
+        // Set some actions
+        set_action(deps.as_mut(), "token-a", "contract-a", Uint128::MAX);
+        set_action(deps.as_mut(), "token-b", "contract-b", Uint128::MAX);
+        set_action(
+            deps.as_mut(),
+            "token-c",
+            "contract-c",
+            Uint128::from(100u128),
+        );
+        set_action(deps.as_mut(), "token-d", "contract-d", Uint128::MAX);
+        set_action(deps.as_mut(), "token-e", "contract-e", Uint128::MAX);
+
+        let res = sudo(deps.as_mut(), mock_env(), SudoMsg::Run {}).unwrap();
+        // Nothing done
+        assert_eq!(res.events.len(), 0);
+        let status: StatusResponse =
+            from_json(query(deps.as_ref(), mock_env(), QueryMsg::Status {}).unwrap()).unwrap();
+        assert_eq!(status.last, Some(Denom::from("token-a")));
+
+        // Iterator should start at the beginning again and execute token-a
+        let res = sudo(deps.as_mut(), mock_env(), SudoMsg::Run {}).unwrap();
+        let status: StatusResponse =
+            from_json(query(deps.as_ref(), mock_env(), QueryMsg::Status {}).unwrap()).unwrap();
+        assert_eq!(status.last, Some(Denom::from("token-b")));
+        assert_eq!(res.events[0].clone().ty, "revenue/run");
+        assert_eq!(res.events[0].clone().attributes[0].clone().key, "denom");
+        assert_eq!(res.events[0].clone().attributes[0].clone().value, "token-b");
+
+        // Run for c, d, e and then loop back to a
+        let res = sudo(deps.as_mut(), mock_env(), SudoMsg::Run {}).unwrap();
+        assert_eq!(res.events[0].clone().attributes[0].clone().value, "token-c");
+
+        let res = sudo(deps.as_mut(), mock_env(), SudoMsg::Run {}).unwrap();
+        assert_eq!(res.events[0].clone().attributes[0].clone().value, "token-d");
+
+        let res = sudo(deps.as_mut(), mock_env(), SudoMsg::Run {}).unwrap();
+        assert_eq!(res.events[0].clone().attributes[0].clone().value, "token-e");
+
+        let res = sudo(deps.as_mut(), mock_env(), SudoMsg::Run {}).unwrap();
+
+        assert_eq!(res.events.len(), 0);
+        let status: StatusResponse =
+            from_json(query(deps.as_ref(), mock_env(), QueryMsg::Status {}).unwrap()).unwrap();
+        assert_eq!(status.last, Some(Denom::from("token-a")));
+    }
+
+    fn set_action(deps: DepsMut, denom: &str, contract: &str, limit: Uint128) {
+        execute(
+            deps,
+            mock_env(),
+            mock_info("owner", &vec![]),
+            ExecuteMsg::SetAction(Action {
+                denom: Denom::from(denom),
+                contract: Addr::unchecked(contract),
+                limit: limit,
+                msg: Binary::default(),
+            }),
+        )
+        .unwrap();
     }
 }
