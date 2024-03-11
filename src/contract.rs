@@ -4,12 +4,12 @@ use cosmwasm_std::{
     to_json_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env, Event, MessageInfo, Reply,
     Response, StdResult, SubMsg,
 };
-use kujira::{fee_address, Denom};
+use kujira::Denom;
 
 use crate::error::ContractError;
 use crate::msg::{
     ActionResponse, ActionsResponse, ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg,
-    StatusResponse, SudoMsg,
+    StatusResponse,
 };
 use crate::state::{Action, Config};
 
@@ -33,35 +33,51 @@ pub fn instantiate(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     let mut config = Config::load(deps.storage)?;
-    if info.sender != config.owner.to_string() {
-        return Err(ContractError::Unauthorized {});
-    }
     match msg {
         ExecuteMsg::SetOwner(owner) => {
+            if info.sender != config.owner.to_string() {
+                return Err(ContractError::Unauthorized {});
+            }
+
             config.owner = owner;
             config.save(deps.storage)?;
             Ok(Response::default())
         }
         ExecuteMsg::SetAction(action) => {
+            if info.sender != config.owner.to_string() {
+                return Err(ContractError::Unauthorized {});
+            }
+
             Action::set(deps.storage, action)?;
             Ok(Response::default())
         }
         ExecuteMsg::UnsetAction(denom) => {
+            if info.sender != config.owner.to_string() {
+                return Err(ContractError::Unauthorized {});
+            }
+
             Action::unset(deps.storage, denom);
             Ok(Response::default())
         }
-    }
-}
+        ExecuteMsg::SetExecutor(executor) => {
+            if info.sender != config.owner.to_string() {
+                return Err(ContractError::Unauthorized {});
+            }
 
-#[cfg_attr(not(feature = "library"), entry_point)]
-pub fn sudo(deps: DepsMut, env: Env, msg: SudoMsg) -> Result<Response, ContractError> {
-    match msg {
-        SudoMsg::Run {} => {
+            config.executor = executor;
+            config.save(deps.storage)?;
+            Ok(Response::default())
+        }
+        ExecuteMsg::Run {} => {
+            if info.sender != config.executor.to_string() {
+                return Err(ContractError::Unauthorized {});
+            }
+
             if let Some((action, msg)) = get_action_msg(deps, &env.contract.address)? {
                 let event =
                     Event::new("revenue/run").add_attribute("denom", action.denom.to_string());
@@ -127,6 +143,7 @@ mod tests {
         testing::{mock_dependencies, mock_dependencies_with_balances, mock_env, mock_info},
         Uint128,
     };
+    use kujira::fee_address;
 
     #[test]
     fn instantiation() {
@@ -136,6 +153,7 @@ mod tests {
             owner: Addr::unchecked("owner"),
             target_denom: Denom::from("ukuji"),
             target_address: fee_address(),
+            executor: Addr::unchecked("executor"),
         };
         instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
         let config: ConfigResponse =
@@ -157,6 +175,7 @@ mod tests {
             owner: Addr::unchecked("owner"),
             target_denom: Denom::from("ukuji"),
             target_address: fee_address(),
+            executor: Addr::unchecked("executor"),
         };
         instantiate(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
 
@@ -229,6 +248,22 @@ mod tests {
         let actions: ActionsResponse =
             from_json(query(deps.as_ref(), mock_env(), QueryMsg::Actions {}).unwrap()).unwrap();
         assert_eq!(actions.actions, vec![]);
+
+        execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info("owner-new", &vec![]),
+            ExecuteMsg::Run {},
+        )
+        .unwrap_err();
+
+        execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info("executor", &vec![]),
+            ExecuteMsg::Run {},
+        )
+        .unwrap();
     }
 
     #[test]
@@ -248,11 +283,18 @@ mod tests {
             owner: Addr::unchecked("owner"),
             target_denom: Denom::from("ukuji"),
             target_address: fee_address(),
+            executor: Addr::unchecked("executor"),
         };
         instantiate(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
 
         // Make sure that execution ends when there are no actions
-        sudo(deps.as_mut(), mock_env(), SudoMsg::Run {}).unwrap();
+        execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info("executor", &vec![]),
+            ExecuteMsg::Run {},
+        )
+        .unwrap();
         let status: StatusResponse =
             from_json(query(deps.as_ref(), mock_env(), QueryMsg::Status {}).unwrap()).unwrap();
         assert_eq!(status.last, None);
@@ -269,7 +311,13 @@ mod tests {
         set_action(deps.as_mut(), "token-d", "contract-d", Uint128::MAX);
         set_action(deps.as_mut(), "token-e", "contract-e", Uint128::MAX);
 
-        let res = sudo(deps.as_mut(), mock_env(), SudoMsg::Run {}).unwrap();
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info("executor", &vec![]),
+            ExecuteMsg::Run {},
+        )
+        .unwrap();
         // Nothing done
         assert_eq!(res.events.len(), 0);
         let status: StatusResponse =
@@ -277,7 +325,13 @@ mod tests {
         assert_eq!(status.last, Some(Denom::from("token-a")));
 
         // Iterator should start at the beginning again and execute token-a
-        let res = sudo(deps.as_mut(), mock_env(), SudoMsg::Run {}).unwrap();
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info("executor", &vec![]),
+            ExecuteMsg::Run {},
+        )
+        .unwrap();
         let status: StatusResponse =
             from_json(query(deps.as_ref(), mock_env(), QueryMsg::Status {}).unwrap()).unwrap();
         assert_eq!(status.last, Some(Denom::from("token-b")));
@@ -286,16 +340,40 @@ mod tests {
         assert_eq!(res.events[0].clone().attributes[0].clone().value, "token-b");
 
         // Run for c, d, e and then loop back to a
-        let res = sudo(deps.as_mut(), mock_env(), SudoMsg::Run {}).unwrap();
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info("executor", &vec![]),
+            ExecuteMsg::Run {},
+        )
+        .unwrap();
         assert_eq!(res.events[0].clone().attributes[0].clone().value, "token-c");
 
-        let res = sudo(deps.as_mut(), mock_env(), SudoMsg::Run {}).unwrap();
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info("executor", &vec![]),
+            ExecuteMsg::Run {},
+        )
+        .unwrap();
         assert_eq!(res.events[0].clone().attributes[0].clone().value, "token-d");
 
-        let res = sudo(deps.as_mut(), mock_env(), SudoMsg::Run {}).unwrap();
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info("executor", &vec![]),
+            ExecuteMsg::Run {},
+        )
+        .unwrap();
         assert_eq!(res.events[0].clone().attributes[0].clone().value, "token-e");
 
-        let res = sudo(deps.as_mut(), mock_env(), SudoMsg::Run {}).unwrap();
+        let res = execute(
+            deps.as_mut(),
+            mock_env(),
+            mock_info("executor", &vec![]),
+            ExecuteMsg::Run {},
+        )
+        .unwrap();
 
         assert_eq!(res.events.len(), 0);
         let status: StatusResponse =

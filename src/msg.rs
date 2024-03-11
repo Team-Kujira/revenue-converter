@@ -7,6 +7,7 @@ use crate::state::Action;
 #[cw_serde]
 pub struct InstantiateMsg {
     pub owner: Addr,
+    pub executor: Addr,
     pub target_denom: Denom,
     pub target_address: Addr,
 }
@@ -14,8 +15,10 @@ pub struct InstantiateMsg {
 #[cw_serde]
 pub enum ExecuteMsg {
     SetOwner(Addr),
+    SetExecutor(Addr),
     SetAction(Action),
     UnsetAction(Denom),
+    Run {},
 }
 
 #[cw_serde]
@@ -32,6 +35,7 @@ pub enum QueryMsg {
 #[cw_serde]
 pub struct ConfigResponse {
     pub owner: Addr,
+    pub executor: Addr,
     pub target_denom: Denom,
     pub target_address: Addr,
 }
@@ -51,9 +55,4 @@ pub struct ActionResponse {
 #[cw_serde]
 pub struct StatusResponse {
     pub last: Option<Denom>,
-}
-
-#[cw_serde]
-pub enum SudoMsg {
-    Run {},
 }

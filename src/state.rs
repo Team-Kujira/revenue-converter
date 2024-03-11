@@ -16,6 +16,10 @@ static ACTIONS: Map<String, (Addr, Uint128, Binary)> = Map::new("actions");
 pub struct Config {
     /// The address permitted to set Actions
     pub owner: Addr,
+
+    /// The address permitted to execute the crank
+    pub executor: Addr,
+
     /// The denom that is transferred to the fee_collector at the end of every execution
     pub target_denom: Denom,
 
@@ -37,6 +41,7 @@ impl From<InstantiateMsg> for Config {
     fn from(value: InstantiateMsg) -> Self {
         Self {
             owner: value.owner,
+            executor: value.executor,
             target_denom: value.target_denom,
             target_address: value.target_address,
         }
@@ -47,6 +52,7 @@ impl From<Config> for ConfigResponse {
     fn from(value: Config) -> Self {
         Self {
             owner: value.owner,
+            executor: value.executor,
             target_denom: value.target_denom,
             target_address: value.target_address,
         }
