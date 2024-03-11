@@ -1,6 +1,6 @@
 # Kujira Revenue Converter
 
-Simple smart-contract layer to allow aggregation of reward tokens and swapping into a smaller number of assets to be disbuted to $KUJI stakers.
+Simple smart-contract layer to allow aggregation of reward tokens and swapping into a smaller number of assets to be distributed to $KUJI stakers.
 
 One contract instance is deployed per revenue token.
 
