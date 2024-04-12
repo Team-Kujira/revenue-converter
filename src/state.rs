@@ -23,8 +23,8 @@ pub struct Config {
     /// The denom that is transferred to the fee_collector at the end of every execution
     pub target_denom: Denom,
 
-    /// The final destination that `target_denom` is sent to
-    pub target_address: Addr,
+    /// The final destinations that `target_denom` is sent to (address, weight)
+    pub target_addresses: Vec<(Addr, u8)>,
 }
 
 impl Config {
@@ -43,7 +43,7 @@ impl From<InstantiateMsg> for Config {
             owner: value.owner,
             executor: value.executor,
             target_denom: value.target_denom,
-            target_address: value.target_address,
+            target_addresses: value.target_addresses,
         }
     }
 }
@@ -54,7 +54,7 @@ impl From<Config> for ConfigResponse {
             owner: value.owner,
             executor: value.executor,
             target_denom: value.target_denom,
-            target_address: value.target_address,
+            target_addresses: value.target_addresses,
         }
     }
 }

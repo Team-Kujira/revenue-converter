@@ -9,7 +9,7 @@ pub struct InstantiateMsg {
     pub owner: Addr,
     pub executor: Addr,
     pub target_denom: Denom,
-    pub target_address: Addr,
+    pub target_addresses: Vec<(Addr, u8)>,
 }
 
 #[cw_serde]
@@ -37,7 +37,7 @@ pub struct ConfigResponse {
     pub owner: Addr,
     pub executor: Addr,
     pub target_denom: Denom,
-    pub target_address: Addr,
+    pub target_addresses: Vec<(Addr, u8)>,
 }
 
 #[cw_serde]

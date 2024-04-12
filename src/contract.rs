@@ -1,8 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_json_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env, Event, MessageInfo, Reply,
-    Response, StdResult, SubMsg,
+    to_json_binary, Addr, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, Event, MessageInfo,
+    Reply, Response, StdResult, SubMsg,
 };
 use kujira::Denom;
 
@@ -118,9 +118,27 @@ pub fn reply(deps: DepsMut, env: Env, _msg: Reply) -> Result<Response, ContractE
     let send = if balance.amount.is_zero() {
         vec![]
     } else {
-        vec![config
-            .target_denom
-            .send(&config.target_address, &balance.amount)]
+        let total_weight = config.target_addresses.iter().fold(0, |a, e| e.1 + a);
+        let mut sends = vec![];
+        let mut remaining = balance.amount;
+        let mut targets = config.target_addresses.iter().peekable();
+
+        while let Some((addr, weight)) = targets.next() {
+            let amount = if targets.peek().is_none() {
+                remaining
+            } else {
+                balance
+                    .amount
+                    .mul_floor(Decimal::from_ratio(*weight, total_weight))
+            };
+            if amount.is_zero() {
+                continue;
+            }
+            remaining -= amount;
+            sends.push(config.target_denom.send(&addr, &balance.amount));
+        }
+
+        sends
     };
     Ok(Response::default()
         .add_messages(send)
@@ -161,7 +179,7 @@ mod tests {
         let msg = InstantiateMsg {
             owner: Addr::unchecked("owner"),
             target_denom: Denom::from("ukuji"),
-            target_address: fee_address(),
+            target_addresses: vec![(fee_address(), 1)],
             executor: Addr::unchecked("executor"),
         };
         instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -183,7 +201,7 @@ mod tests {
         let msg = InstantiateMsg {
             owner: Addr::unchecked("owner"),
             target_denom: Denom::from("ukuji"),
-            target_address: fee_address(),
+            target_addresses: vec![(fee_address(), 1)],
             executor: Addr::unchecked("executor"),
         };
         instantiate(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
@@ -291,7 +309,7 @@ mod tests {
         let msg = InstantiateMsg {
             owner: Addr::unchecked("owner"),
             target_denom: Denom::from("ukuji"),
-            target_address: fee_address(),
+            target_addresses: vec![(fee_address(), 1)],
             executor: Addr::unchecked("executor"),
         };
         instantiate(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
