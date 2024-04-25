@@ -8,7 +8,7 @@ use crate::state::Action;
 pub struct InstantiateMsg {
     pub owner: Addr,
     pub executor: Addr,
-    pub target_denom: Denom,
+    pub target_denoms: Vec<Denom>,
     pub target_addresses: Vec<(Addr, u8)>,
 }
 
@@ -36,7 +36,7 @@ pub enum QueryMsg {
 pub struct ConfigResponse {
     pub owner: Addr,
     pub executor: Addr,
-    pub target_denom: Denom,
+    pub target_denoms: Vec<Denom>,
     pub target_addresses: Vec<(Addr, u8)>,
 }
 

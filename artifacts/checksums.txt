@@ -1,1 +1,1 @@
-3e32932f38991ab7fb572aaa0aea4792b6d72ff034b7a9927dfdcd790e8b940b  kujira_revenue_converter.wasm
+30e7100ba9fe0599593ca45bf9b42efbd0b317ee11e1fa702dfda797d1a2e01a  kujira_revenue_converter.wasm

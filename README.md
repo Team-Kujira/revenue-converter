@@ -14,3 +14,9 @@ At the end of each execution, `revenue_token` balance is read and is deposited t
 
 - code-id `3147`
 - address `kujira158ydy6qlfq7khtnj5lj9a5dy25ep8hece4d0lqngzxqrwuz6dctsdl5eqx`
+
+### Mainnet
+
+- code-id `282`
+- `kujira1xajlwpfpjnvwehurrj2w7d8ru6sm4579vzfp44c6fd5sj86u6tvqdk6mjn`: USK target
+- `kujira1x97ay4eq7uv7hh59ytdxm3lsz567yz9wrwn74gq7dsspuapqvjtq03tajj`: KUJI target
